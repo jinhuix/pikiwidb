@@ -557,3 +557,56 @@ void KVPageMGetCmd::ReadCache() {
 void KVPageMGetCmd::DoUpdateCache() {
   // TODO
 }
+
+// ======================= KVPageExistsCmd =======================
+void KVPageExistsCmd::DoInitial() {
+  if (!CheckArg(argv_.size())) {
+    res_.SetRes(CmdRes::kWrongNum, "kvpageexists");
+    return;
+  }
+  
+  // KVPAGEEXISTS <req_id> <layer> <head> <page_id> <kv_type>
+  if (argv_.size() != 6) {
+    res_.SetRes(CmdRes::kWrongNum, "kvpageexists requires 5 arguments");
+    return;
+  }
+  
+  try {
+    std::string req_id = argv_[1];
+    uint16_t layer_idx = static_cast<uint16_t>(std::stoul(argv_[2]));
+    uint8_t head_idx = static_cast<uint8_t>(std::stoul(argv_[3]));
+    uint32_t page_id = static_cast<uint32_t>(std::stoul(argv_[4]));
+    uint8_t kv_type = static_cast<uint8_t>(std::stoul(argv_[5]));
+    
+    // Build the page key
+    key_ = pikiwidb::KVCachePageKeyBuilder::BuildPageKey(req_id, layer_idx, 
+                                                        head_idx, page_id, kv_type);
+    
+  } catch (const std::exception& e) {
+    res_.SetRes(CmdRes::kInvalidInt, "Invalid argument format");
+    return;
+  }
+}
+
+void KVPageExistsCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  std::string value;
+  s_ = db_->storage()->Get(key_, &value);
+  
+  if (s_.ok()) {
+    res_.AppendInteger(1);  // Page exists
+  } else if (s_.IsNotFound()) {
+    res_.AppendInteger(0);  // Page does not exist
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void KVPageExistsCmd::DoThroughDB() {
+  res_.clear();
+  Do();
+}
+
+void KVPageExistsCmd::ReadCache() {
+  res_.SetRes(CmdRes::kCacheMiss);
+}

@@ -130,6 +130,7 @@ const std::string kCmdNameKVPageSet = "kvpageset";
 const std::string kCmdNameKVPageGet = "kvpageget";
 const std::string kCmdNameKVPageMSet = "kvpagemset";
 const std::string kCmdNameKVPageMGet = "kvpagemget";
+const std::string kCmdNameKVPageExists = "kvpageexists";
 
 // Hash
 const std::string kCmdNameHDel = "hdel";
