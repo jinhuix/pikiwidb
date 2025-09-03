@@ -273,3 +273,94 @@ void KVPageSetCmd::DoUpdateCache() {
   // 跳过缓存更新，数据直接存储在底层存储中
   LOG(INFO) << "KVPageSetCmd::DoUpdateCache() - Skip cache update";
 }
+
+
+// ======================= KVPageGetCmd =======================
+void KVPageGetCmd::DoInitial() {
+  LOG(INFO) << "KVPageGetCmd::DoInitial() - argc: " << argv_.size();
+  LOG(INFO) << "KVPageGetCmd::DoInitial() - arity_: " << arity_;
+  
+  bool check_result = CheckArg(argv_.size());
+  LOG(INFO) << "KVPageGetCmd::DoInitial() - CheckArg result: " << check_result;
+  
+  if (!check_result) {
+    LOG(ERROR) << "KVPageGetCmd::DoInitial() - CheckArg failed, argc=" << argv_.size() << ", arity=" << arity_;
+    res_.SetRes(CmdRes::kWrongNum, "kvpageget");
+    return;
+  }
+  
+  // KVPAGEGET <req_id> <layer> <head> <page_id> <kv_type>
+  if (argv_.size() != 6) {
+    LOG(ERROR) << "KVPageGetCmd::DoInitial() - Wrong argc: " << argv_.size() << ", expected 6";
+    res_.SetRes(CmdRes::kWrongNum, "kvpageget requires 5 arguments");
+    return;
+  }
+  
+  try {
+    std::string req_id = argv_[1];
+    uint16_t layer_idx = static_cast<uint16_t>(std::stoul(argv_[2]));
+    uint8_t head_idx = static_cast<uint8_t>(std::stoul(argv_[3]));
+    uint32_t page_id = static_cast<uint32_t>(std::stoul(argv_[4]));
+    uint8_t kv_type = static_cast<uint8_t>(std::stoul(argv_[5]));
+    
+    // Build the page key
+    key_ = pikiwidb::KVCachePageKeyBuilder::BuildPageKey(req_id, layer_idx, 
+                                                        head_idx, page_id, kv_type);
+    
+    LOG(INFO) << "KVPageGetCmd::DoInitial() - Built key: " << key_;
+    
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "KVPageGetCmd::DoInitial() - Exception: " << e.what();
+    res_.SetRes(CmdRes::kInvalidInt, "Invalid argument format");
+    return;
+  }
+  
+  LOG(INFO) << "KVPageGetCmd::DoInitial() - Success";
+}
+
+void KVPageGetCmd::Do() {
+  LOG(INFO) << "KVPageGetCmd::Do() - Start";
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->Get(key_, &value_);
+
+  LOG(INFO) << "KVPageGetCmd::Do() - Key: " << key_;
+  LOG(INFO) << "KVPageGetCmd::Do() - Storage result: " << s_.ToString();
+  
+  if (s_.ok()) {
+    LOG(INFO) << "KVPageGetCmd::Do() - Found data, size: " << value_.size();
+    // Parse and validate the page
+    pikiwidb::KVCachePage page;
+
+    if (page.ParsePage(value_)) {
+      // Return the raw tensor data (without header)
+      LOG(INFO) << "KVPageGetCmd::Do() - Page parsed successfully";
+      const uint8_t* tensor_data = page.GetTensorData();
+      size_t tensor_size = page.GetTensorDataSize();
+      LOG(INFO) << "KVPageGetCmd::Do() - Returning tensor data, size: " << tensor_size;
+      res_.AppendStringLenUint64(tensor_size);
+      res_.AppendContent(std::string(reinterpret_cast<const char*>(tensor_data), tensor_size));
+    } else {
+      LOG(ERROR) << "KVPageGetCmd::Do() - Invalid KV cache page format";
+      res_.SetRes(CmdRes::kErrOther, "Invalid KV cache page format");
+    }
+  } else if (s_.IsNotFound()) {
+    LOG(INFO) << "KVPageGetCmd::Do() - Key not found, returning null";
+    res_.AppendStringLen(-1);
+  } else {
+    LOG(ERROR) << "KVPageGetCmd::Do() - Storage error: " << s_.ToString();
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+  
+  LOG(INFO) << "KVPageGetCmd::Do() - End";
+}
+
+void KVPageGetCmd::DoThroughDB() {
+  Do();
+}
+
+void KVPageGetCmd::ReadCache() {
+  LOG(INFO) << "KVPageGetCmd::ReadCache() - Start";
+  // KV Cache 页面不使用标准的 Redis 缓存机制
+  // 直接跳过缓存读取，让系统调用 DoThroughDB()
+  LOG(INFO) << "KVPageGetCmd::ReadCache() - Skip cache, will call DoThroughDB";
+}
