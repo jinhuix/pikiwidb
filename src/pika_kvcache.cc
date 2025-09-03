@@ -268,10 +268,7 @@ void KVPageSetCmd::DoThroughDB() {
 }
 
 void KVPageSetCmd::DoUpdateCache() {
-  LOG(INFO) << "KVPageSetCmd::DoUpdateCache() - Start";
-  // KV Cache 页面不使用标准的 Redis 缓存机制
-  // 跳过缓存更新，数据直接存储在底层存储中
-  LOG(INFO) << "KVPageSetCmd::DoUpdateCache() - Skip cache update";
+    // TODO
 }
 
 
@@ -355,12 +352,15 @@ void KVPageGetCmd::Do() {
 }
 
 void KVPageGetCmd::DoThroughDB() {
+  res_.clear();
   Do();
 }
 
 void KVPageGetCmd::ReadCache() {
-  LOG(INFO) << "KVPageGetCmd::ReadCache() - Start";
-  // KV Cache 页面不使用标准的 Redis 缓存机制
-  // 直接跳过缓存读取，让系统调用 DoThroughDB()
-  LOG(INFO) << "KVPageGetCmd::ReadCache() - Skip cache, will call DoThroughDB";
+  // TODO
+  res_.SetRes(CmdRes::kCacheMiss);
+}
+
+void KVPageGetCmd::DoUpdateCache() {
+  // TODO
 }

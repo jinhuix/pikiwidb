@@ -165,6 +165,7 @@ public:
   void Do() override;
   void DoThroughDB() override;
   void ReadCache() override;
+  void DoUpdateCache() override;
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new KVPageGetCmd(*this); }
