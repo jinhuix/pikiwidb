@@ -129,6 +129,7 @@ const std::string kCmdNamePKRScanRange = "pkrscanrange";
 const std::string kCmdNameKVPageSet = "kvpageset";
 const std::string kCmdNameKVPageGet = "kvpageget";
 const std::string kCmdNameKVPageMSet = "kvpagemset";
+const std::string kCmdNameKVPageMGet = "kvpagemget";
 
 // Hash
 const std::string kCmdNameHDel = "hdel";

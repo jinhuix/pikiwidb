@@ -466,3 +466,94 @@ void KVPageMSetCmd::DoThroughDB() {
 void KVPageMSetCmd::DoUpdateCache() {
   // TODO
 }
+
+// ======================= KVPageMGetCmd =======================
+void KVPageMGetCmd::DoInitial() {
+  if (!CheckArg(argv_.size())) {
+    res_.SetRes(CmdRes::kWrongNum, "kvpagemget");
+    return;
+  }
+  
+  // KVPAGEMGET <num_keys> <req_id1> <layer1> <head1> <page_id1> <kv_type1> ...
+  if (argv_.size() < 2) {
+    res_.SetRes(CmdRes::kWrongNum, "kvpagemget requires at least 1 argument");
+    return;
+  }
+  
+  try {
+    size_t num_keys = std::stoul(argv_[1]);
+    if (argv_.size() != 2 + num_keys * 5) {
+      res_.SetRes(CmdRes::kWrongNum, "kvpagemget argument count mismatch");
+      return;
+    }
+    
+    keys_.clear();
+    keys_.reserve(num_keys);
+    
+    for (size_t i = 0; i < num_keys; ++i) {
+      size_t base_idx = 2 + i * 5;
+      std::string req_id = argv_[base_idx];
+      uint16_t layer_idx = static_cast<uint16_t>(std::stoul(argv_[base_idx + 1]));
+      uint8_t head_idx = static_cast<uint8_t>(std::stoul(argv_[base_idx + 2]));
+      uint32_t page_id = static_cast<uint32_t>(std::stoul(argv_[base_idx + 3]));
+      uint8_t kv_type = static_cast<uint8_t>(std::stoul(argv_[base_idx + 4]));
+      
+      std::string key = pikiwidb::KVCachePageKeyBuilder::BuildPageKey(
+          req_id, layer_idx, head_idx, page_id, kv_type);
+      keys_.push_back(key);
+    }
+    
+  } catch (const std::exception& e) {
+    res_.SetRes(CmdRes::kInvalidInt, "Invalid argument format");
+    return;
+  }
+}
+
+void KVPageMGetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  
+  values_.clear();
+  values_.resize(keys_.size());
+  statuses_.clear();
+  statuses_.resize(keys_.size());
+  
+  // Batch get all keys
+  for (size_t i = 0; i < keys_.size(); ++i) {
+    statuses_[i] = db_->storage()->Get(keys_[i], &values_[i]);
+  }
+  
+  // Build response array
+  res_.AppendArrayLen(keys_.size());
+  
+  for (size_t i = 0; i < keys_.size(); ++i) {
+    if (statuses_[i].ok()) {
+      // Parse and validate the page
+      pikiwidb::KVCachePage page;
+      if (page.ParsePage(values_[i])) {
+        // Return the raw tensor data
+        const uint8_t* tensor_data = page.GetTensorData();
+        size_t tensor_size = page.GetTensorDataSize();
+        res_.AppendStringLenUint64(tensor_size);
+        res_.AppendContent(std::string(reinterpret_cast<const char*>(tensor_data), tensor_size));
+      } else {
+        res_.AppendStringLen(-1);  // Invalid page format
+      }
+    } else {
+      res_.AppendStringLen(-1);  // Key not found or error
+    }
+  }
+}
+
+void KVPageMGetCmd::DoThroughDB() {
+  res_.clear();
+  Do();
+}
+
+void KVPageMGetCmd::ReadCache() {
+  // TODO
+  res_.SetRes(CmdRes::kCacheMiss);
+}
+
+void KVPageMGetCmd::DoUpdateCache() {
+  // TODO
+}

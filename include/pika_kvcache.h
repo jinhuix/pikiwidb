@@ -216,4 +216,29 @@ private:
   std::vector<rocksdb::Status> statuses_;
 };
 
+class KVPageMGetCmd : public Cmd {
+public:
+  KVPageMGetCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, 0) {}
+  
+  std::vector<std::string> current_key() const override {
+    return keys_;
+  }
+  
+  void Do() override;
+  void ReadCache() override;
+  void DoThroughDB() override;
+  void DoUpdateCache() override;
+  void Split(const HintKeys& hint_keys) override {};
+  void Merge() override {};
+  Cmd* Clone() override { return new KVPageMGetCmd(*this); }
+
+private:
+  std::vector<std::string> keys_;
+  std::vector<std::string> values_;
+  
+  void DoInitial() override;
+  std::vector<rocksdb::Status> statuses_;
+};
+
 #endif  // PIKA_KVCACHE_H_

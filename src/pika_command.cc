@@ -400,6 +400,10 @@ void InitCmdTable(CmdTable* cmd_table) {
   std::unique_ptr<Cmd> kvpagemsetptr =
       std::make_unique<KVPageMSetCmd>(kCmdNameKVPageMSet, -3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVPageMSet, std::move(kvpagemsetptr)));
+  ////KVPageMGetCmd
+  std::unique_ptr<Cmd> kvpagemgetptr =
+      std::make_unique<KVPageMGetCmd>(kCmdNameKVPageMGet, -3, kCmdFlagsRead | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache | kCmdFlagsFast);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVPageMGet, std::move(kvpagemgetptr)));
 
   // Hash
   ////HDelCmd
