@@ -16,6 +16,7 @@
 #include "include/pika_hash.h"
 #include "include/pika_hyperloglog.h"
 #include "include/pika_kv.h"
+#include "include/pika_kvcache.h"
 #include "include/pika_list.h"
 #include "include/pika_pubsub.h"
 #include "include/pika_rm.h"
@@ -385,6 +386,12 @@ void InitCmdTable(CmdTable* cmd_table) {
   std::unique_ptr<Cmd> pkrscanrangeptr = std::make_unique<PKRScanRangeCmd>(
       kCmdNamePKRScanRange, -4, kCmdFlagsRead |  kCmdFlagsOperateKey | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNamePKRScanRange, std::move(pkrscanrangeptr)));
+
+  // KV Cache - Page-oriented (vLLM PagedAttention)
+  ////KVPageSetCmd
+  std::unique_ptr<Cmd> kvpagesetptr =
+      std::make_unique<KVPageSetCmd>(kCmdNameKVPageSet, 11, kCmdFlagsWrite |  kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVPageSet, std::move(kvpagesetptr)));
 
   // Hash
   ////HDelCmd
