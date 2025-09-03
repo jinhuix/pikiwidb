@@ -128,6 +128,7 @@ const std::string kCmdNamePKRScanRange = "pkrscanrange";
 // KV Cache - Page-oriented (vLLM PagedAttention)
 const std::string kCmdNameKVPageSet = "kvpageset";
 const std::string kCmdNameKVPageGet = "kvpageget";
+const std::string kCmdNameKVPageMSet = "kvpagemset";
 
 // Hash
 const std::string kCmdNameHDel = "hdel";

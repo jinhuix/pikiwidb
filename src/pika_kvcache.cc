@@ -364,3 +364,105 @@ void KVPageGetCmd::ReadCache() {
 void KVPageGetCmd::DoUpdateCache() {
   // TODO
 }
+
+// ======================= KVPageMSetCmd =======================
+void KVPageMSetCmd::DoInitial() {
+  if (!CheckArg(argv_.size())) {
+    res_.SetRes(CmdRes::kWrongNum, "kvpagemset");
+    return;
+  }
+  
+  // KVPAGEMSET <num_pages> <req_id1> <layer1> <head1> <page_id1> <kv_type1> <dtype1> <page_size1> <head_dim1> <ttl1> <data1> ...
+  if (argv_.size() < 2) {
+    res_.SetRes(CmdRes::kWrongNum, "kvpagemset requires at least 1 argument");
+    return;
+  }
+  
+  try {
+    size_t num_pages = std::stoul(argv_[1]);
+    if (argv_.size() != 2 + num_pages * 10) {
+      res_.SetRes(CmdRes::kWrongNum, "kvpagemset argument count mismatch");
+      return;
+    }
+    
+    keys_.clear();
+    pages_.clear();
+    keys_.reserve(num_pages);
+    pages_.reserve(num_pages);
+    
+    for (size_t i = 0; i < num_pages; ++i) {
+      size_t base_idx = 2 + i * 10;
+      PageData page_data;
+      
+      page_data.req_id = argv_[base_idx];
+      page_data.layer_idx = static_cast<uint16_t>(std::stoul(argv_[base_idx + 1]));
+      page_data.head_idx = static_cast<uint8_t>(std::stoul(argv_[base_idx + 2]));
+      page_data.page_id = static_cast<uint32_t>(std::stoul(argv_[base_idx + 3]));
+      page_data.kv_type = static_cast<uint8_t>(std::stoul(argv_[base_idx + 4]));
+      page_data.dtype = static_cast<uint8_t>(std::stoul(argv_[base_idx + 5]));
+      page_data.page_size = static_cast<uint16_t>(std::stoul(argv_[base_idx + 6]));
+      page_data.head_dim = static_cast<uint16_t>(std::stoul(argv_[base_idx + 7]));
+      page_data.ttl_seconds = static_cast<uint32_t>(std::stoul(argv_[base_idx + 8]));
+      page_data.tensor_data = argv_[base_idx + 9];
+      
+      page_data.key = pikiwidb::KVCachePageKeyBuilder::BuildPageKey(
+          page_data.req_id, page_data.layer_idx, page_data.head_idx, 
+          page_data.page_id, page_data.kv_type);
+      
+      keys_.push_back(page_data.key);
+      pages_.push_back(page_data);
+    }
+    
+  } catch (const std::exception& e) {
+    res_.SetRes(CmdRes::kInvalidInt, "Invalid argument format");
+    return;
+  }
+}
+
+void KVPageMSetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  
+  statuses_.clear();
+  statuses_.resize(pages_.size());
+  
+  // Batch set all pages
+  for (size_t i = 0; i < pages_.size(); ++i) {
+    const PageData& page_data = pages_[i];
+    
+    // Create KV cache page
+    pikiwidb::KVCachePage page;
+    if (!page.CreatePage(page_data.req_id, page_data.layer_idx, page_data.head_idx,
+                        page_data.page_id, page_data.kv_type, page_data.dtype,
+                        page_data.page_size, page_data.head_dim,
+                        page_data.tensor_data.data(), page_data.tensor_data.size())) {
+      statuses_[i] = rocksdb::Status::InvalidArgument("Failed to create page");
+      continue;
+    }
+    
+    std::string serialized_data = page.GetSerializedData();
+    statuses_[i] = db_->storage()->Set(page_data.key, serialized_data);
+  }
+  
+  // Check if all operations succeeded
+  bool all_success = true;
+  for (const auto& status : statuses_) {
+    if (!status.ok()) {
+      all_success = false;
+      break;
+    }
+  }
+  
+  if (all_success) {
+    res_.SetRes(CmdRes::kOk);
+  } else {
+    res_.SetRes(CmdRes::kErrOther, "Some page set operations failed");
+  }
+}
+
+void KVPageMSetCmd::DoThroughDB() {
+  Do();
+}
+
+void KVPageMSetCmd::DoUpdateCache() {
+  // TODO
+}

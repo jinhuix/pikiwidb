@@ -178,4 +178,42 @@ private:
   rocksdb::Status s_;
 };
 
+class KVPageMSetCmd : public Cmd {
+public:
+  KVPageMSetCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, 0) {}
+  
+  std::vector<std::string> current_key() const override {
+    return keys_;
+  }
+  
+  void Do() override;
+  void DoThroughDB() override;
+  void DoUpdateCache() override;
+  void Split(const HintKeys& hint_keys) override {};
+  void Merge() override {};
+  Cmd* Clone() override { return new KVPageMSetCmd(*this); }
+
+private:
+  struct PageData {
+    std::string key;
+    std::string req_id;
+    uint16_t layer_idx;
+    uint8_t head_idx;
+    uint32_t page_id;
+    uint8_t kv_type;
+    uint8_t dtype;
+    uint16_t page_size;
+    uint16_t head_dim;
+    uint32_t ttl_seconds;
+    std::string tensor_data;
+  };
+  
+  std::vector<std::string> keys_;
+  std::vector<PageData> pages_;
+  
+  void DoInitial() override;
+  std::vector<rocksdb::Status> statuses_;
+};
+
 #endif  // PIKA_KVCACHE_H_
