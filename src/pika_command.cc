@@ -387,27 +387,27 @@ void InitCmdTable(CmdTable* cmd_table) {
       kCmdNamePKRScanRange, -4, kCmdFlagsRead |  kCmdFlagsOperateKey | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNamePKRScanRange, std::move(pkrscanrangeptr)));
 
-  // KV Cache - Page-oriented (vLLM PagedAttention)
-  ////KVPageSetCmd
-  std::unique_ptr<Cmd> kvpagesetptr =
-      std::make_unique<KVPageSetCmd>(kCmdNameKVPageSet, 11, kCmdFlagsWrite |  kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
-  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVPageSet, std::move(kvpagesetptr)));
-  ////KVPageGetCmd
-  std::unique_ptr<Cmd> kvpagegetptr =
-      std::make_unique<KVPageGetCmd>(kCmdNameKVPageGet, 6, kCmdFlagsRead | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsReadCache | kCmdFlagsSlow);
-  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVPageGet, std::move(kvpagegetptr)));
-  ////KVPageMSetCmd
-  std::unique_ptr<Cmd> kvpagemsetptr =
-      std::make_unique<KVPageMSetCmd>(kCmdNameKVPageMSet, -3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
-  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVPageMSet, std::move(kvpagemsetptr)));
-  ////KVPageMGetCmd
-  std::unique_ptr<Cmd> kvpagemgetptr =
-      std::make_unique<KVPageMGetCmd>(kCmdNameKVPageMGet, -3, kCmdFlagsRead | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache | kCmdFlagsFast);
-  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVPageMGet, std::move(kvpagemgetptr)));
-  ////KVPageExistsCmd
-  std::unique_ptr<Cmd> kvpageexistsptr =
-      std::make_unique<KVPageExistsCmd>(kCmdNameKVPageExists, 6, kCmdFlagsRead | kCmdFlagsOperateKey | kCmdFlagsDoThroughDB | kCmdFlagsReadCache | kCmdFlagsFast);
-  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVPageExists, std::move(kvpageexistsptr)));
+  // KV Cache Block-oriented (vLLM PagedAttention)
+  ////KVBlockSetCmd
+  std::unique_ptr<Cmd> kvblocksetptr =
+      std::make_unique<KVBlockSetCmd>(kCmdNameKVBlockSet, 6, kCmdFlagsWrite |  kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVBlockSet, std::move(kvblocksetptr)));
+  ////KVBlockGetCmd
+  std::unique_ptr<Cmd> kvblockgetptr =
+      std::make_unique<KVBlockGetCmd>(kCmdNameKVBlockGet, 5, kCmdFlagsRead | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsReadCache | kCmdFlagsSlow);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVBlockGet, std::move(kvblockgetptr)));
+  ////KVBlockMSetCmd
+  std::unique_ptr<Cmd> kvblockmsetptr =
+      std::make_unique<KVBlockMSetCmd>(kCmdNameKVBlockMSet, -3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVBlockMSet, std::move(kvblockmsetptr)));
+  ////KVBlockMGetCmd
+  std::unique_ptr<Cmd> kvblockmgetptr =
+      std::make_unique<KVBlockMGetCmd>(kCmdNameKVBlockMGet, -3, kCmdFlagsRead | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache | kCmdFlagsFast);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVBlockMGet, std::move(kvblockmgetptr)));
+  ////KVBlockExistsCmd
+  std::unique_ptr<Cmd> kvblockexistsptr =
+      std::make_unique<KVBlockExistsCmd>(kCmdNameKVBlockExists, 5, kCmdFlagsRead | kCmdFlagsOperateKey | kCmdFlagsDoThroughDB | kCmdFlagsReadCache | kCmdFlagsFast);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameKVBlockExists, std::move(kvblockexistsptr)));
 
   // Hash
   ////HDelCmd

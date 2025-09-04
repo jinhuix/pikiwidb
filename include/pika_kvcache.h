@@ -12,113 +12,55 @@
 #include "include/pika_command.h"
 #include "storage/storage.h"
 
+// ==================== KVBlock for vLLM Block-level KV Cache ====================
+
 namespace pikiwidb {
 
-// KV cache page header structure (32 bytes) - Page-oriented design
-struct KVCachePageHeader {
-  uint32_t magic;           // 'PVKP' (PikiwiDB vLLM KV Page) (4 bytes)
-  uint8_t version;          // Format version (1 byte)
-  uint8_t dtype;            // 1=FP16, 2=FP32, 3=INT8 (1 byte)
-  uint16_t page_size;       // Page size (tokens per page, e.g. 128) (2 bytes)
-  uint16_t head_dim;        // Head dimension (2 bytes)
-  uint16_t layer_idx;       // Layer index (2 bytes)
-  uint32_t page_id;         // Page ID (4 bytes)
-  uint8_t head_idx;         // Head index (1 byte)
-  uint8_t kv_type;          // 0=K, 1=V (1 byte)
-  uint16_t reserved1;       // Reserved (2 bytes)
-  uint32_t timestamp;       // Timestamp for TTL/GC (4 bytes)
-  uint32_t data_size;       // Actual data size in bytes (4 bytes)
-  uint32_t crc32;           // CRC32 checksum (4 bytes)
-};
-
-static_assert(sizeof(KVCachePageHeader) == 32, "KVCachePageHeader must be 32 bytes");
-
-// KV cache page constants
-constexpr uint32_t KVCACHE_PAGE_MAGIC = 0x50564B50;  // 'PVKP'
-constexpr uint8_t KVCACHE_PAGE_VERSION = 1;
-
-// Data type constants
-enum class KVCacheDataType : uint8_t {
-  FP16 = 1,
-  FP32 = 2,
-  INT8 = 3
-};
-
-// Page-oriented key builder for vLLM PagedAttention
-class KVCachePageKeyBuilder {
+// KVBlock key builder for vLLM block-level storage
+class KVBlockKeyBuilder {
 public:
-  // Build key for a single KV page: kv:<req_id>:<layer>:<head>:<page_id>:<kv_type>
-  static std::string BuildPageKey(const std::string& req_id,
-                                 uint16_t layer_idx,
-                                 uint8_t head_idx,
-                                 uint32_t page_id,
-                                 uint8_t kv_type);  // 0=K, 1=V
+  // Build key for a single KV block: kvblock:{ns}:{layer_id}:{block_id}:{k_type}
+  static std::string BuildBlockKey(const std::string& ns,
+                                  uint16_t layer_id,
+                                  uint32_t block_id,
+                                  uint8_t k_type);  // 0=K, 1=V
   
-  // Build batch key prefix for multiple pages: kv:<req_id>:<layer>:*
-  static std::string BuildBatchKeyPrefix(const std::string& req_id,
-                                        uint16_t layer_idx);
-  
-  // Build TTL index key for request cleanup: ttl:<req_id>
-  static std::string BuildTTLKey(const std::string& req_id);
-  
-  // Parse page key and extract components
-  static bool ParsePageKey(const std::string& key,
-                          std::string& req_id,
-                          uint16_t& layer_idx,
-                          uint8_t& head_idx,
-                          uint32_t& page_id,
-                          uint8_t& kv_type);
+  // Parse block key and extract components
+  static bool ParseBlockKey(const std::string& key,
+                           std::string& ns,
+                           uint16_t& layer_id,
+                           uint32_t& block_id,
+                           uint8_t& k_type);
 };
 
-// KV cache page serializer/deserializer for vLLM PagedAttention
-class KVCachePage {
+// Simple KVBlock for storing raw K/V tensor data
+class KVBlock {
 public:
-  KVCachePage() = default;
+  KVBlock() = default;
   
-  // Create page from tensor data (FP16/FP32 raw bytes)
-  bool CreatePage(const std::string& req_id,
-                  uint16_t layer_idx,
-                  uint8_t head_idx,
-                  uint32_t page_id,
-                  uint8_t kv_type,
-                  uint8_t dtype,
-                  uint16_t page_size,
-                  uint16_t head_dim,
-                  const void* tensor_data,
-                  size_t data_size);
+  // Create block from raw tensor data
+  bool CreateBlock(const void* tensor_data, size_t data_size);
   
-  // Parse page from serialized string
-  bool ParsePage(const std::string& serialized_data);
+  // Parse block from serialized string (just raw data)
+  bool ParseBlock(const std::string& serialized_data);
   
-  // Get serialized page data
+  // Get serialized block data (just raw tensor bytes)
   std::string GetSerializedData() const;
   
-  // Get raw tensor data pointer (for zero-copy operations)
+  // Get raw tensor data pointer
   const uint8_t* GetTensorData() const { return tensor_data_.data(); }
   size_t GetTensorDataSize() const { return tensor_data_.size(); }
-  
-  // Getters
-  const KVCachePageHeader& GetHeader() const { return header_; }
-  
-  // Validate page integrity
-  bool ValidatePage() const;
-  
-  // Static helper: Calculate tensor data size
-  static size_t CalculateTensorSize(uint8_t dtype, uint16_t page_size, uint16_t head_dim);
 
 private:
-  KVCachePageHeader header_;
   std::vector<uint8_t> tensor_data_;
-  
-  uint32_t CalculateCRC32(const void* data, size_t size) const;
 };
 
 }  // namespace pikiwidb
 
-// Page-oriented KV cache commands for vLLM PagedAttention
-class KVPageSetCmd : public Cmd {
+// Block-level KV cache commands for vLLM
+class KVBlockSetCmd : public Cmd {
 public:
-  KVPageSetCmd(const std::string& name, int arity, uint32_t flag)
+  KVBlockSetCmd(const std::string& name, int arity, uint32_t flag)
       : Cmd(name, arity, flag, 0) {}
   
   std::vector<std::string> current_key() const override {
@@ -132,28 +74,23 @@ public:
   void DoUpdateCache() override;
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
-  Cmd* Clone() override { return new KVPageSetCmd(*this); }
+  Cmd* Clone() override { return new KVBlockSetCmd(*this); }
 
 private:
   std::string key_;
-  std::string req_id_;
-  uint16_t layer_idx_;
-  uint8_t head_idx_;
-  uint32_t page_id_;
-  uint8_t kv_type_;
-  uint8_t dtype_;
-  uint16_t page_size_;
-  uint16_t head_dim_;
-  uint32_t ttl_seconds_;
+  std::string ns_;
+  uint16_t layer_id_;
+  uint32_t block_id_;
+  uint8_t k_type_;
   std::string tensor_data_;
   
   void DoInitial() override;
   rocksdb::Status s_;
 };
 
-class KVPageGetCmd : public Cmd {
+class KVBlockGetCmd : public Cmd {
 public:
-  KVPageGetCmd(const std::string& name, int arity, uint32_t flag)
+  KVBlockGetCmd(const std::string& name, int arity, uint32_t flag)
       : Cmd(name, arity, flag, 0) {}
   
   std::vector<std::string> current_key() const override {
@@ -168,7 +105,7 @@ public:
   void DoUpdateCache() override;
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
-  Cmd* Clone() override { return new KVPageGetCmd(*this); }
+  Cmd* Clone() override { return new KVBlockGetCmd(*this); }
 
 private:
   std::string key_;
@@ -178,9 +115,9 @@ private:
   rocksdb::Status s_;
 };
 
-class KVPageMSetCmd : public Cmd {
+class KVBlockMSetCmd : public Cmd {
 public:
-  KVPageMSetCmd(const std::string& name, int arity, uint32_t flag)
+  KVBlockMSetCmd(const std::string& name, int arity, uint32_t flag)
       : Cmd(name, arity, flag, 0) {}
   
   std::vector<std::string> current_key() const override {
@@ -192,33 +129,28 @@ public:
   void DoUpdateCache() override;
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
-  Cmd* Clone() override { return new KVPageMSetCmd(*this); }
+  Cmd* Clone() override { return new KVBlockMSetCmd(*this); }
 
 private:
-  struct PageData {
+  struct BlockData {
     std::string key;
-    std::string req_id;
-    uint16_t layer_idx;
-    uint8_t head_idx;
-    uint32_t page_id;
-    uint8_t kv_type;
-    uint8_t dtype;
-    uint16_t page_size;
-    uint16_t head_dim;
-    uint32_t ttl_seconds;
+    std::string ns;
+    uint16_t layer_id;
+    uint32_t block_id;
+    uint8_t k_type;
     std::string tensor_data;
   };
   
   std::vector<std::string> keys_;
-  std::vector<PageData> pages_;
+  std::vector<BlockData> blocks_;
   
   void DoInitial() override;
   std::vector<rocksdb::Status> statuses_;
 };
 
-class KVPageMGetCmd : public Cmd {
+class KVBlockMGetCmd : public Cmd {
 public:
-  KVPageMGetCmd(const std::string& name, int arity, uint32_t flag)
+  KVBlockMGetCmd(const std::string& name, int arity, uint32_t flag)
       : Cmd(name, arity, flag, 0) {}
   
   std::vector<std::string> current_key() const override {
@@ -231,7 +163,7 @@ public:
   void DoUpdateCache() override;
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
-  Cmd* Clone() override { return new KVPageMGetCmd(*this); }
+  Cmd* Clone() override { return new KVBlockMGetCmd(*this); }
 
 private:
   std::vector<std::string> keys_;
@@ -241,9 +173,9 @@ private:
   std::vector<rocksdb::Status> statuses_;
 };
 
-class KVPageExistsCmd : public Cmd {
+class KVBlockExistsCmd : public Cmd {
 public:
-  KVPageExistsCmd(const std::string& name, int arity, uint32_t flag)
+  KVBlockExistsCmd(const std::string& name, int arity, uint32_t flag)
       : Cmd(name, arity, flag, 0) {}
   
   std::vector<std::string> current_key() const override {
@@ -257,7 +189,7 @@ public:
   void DoThroughDB() override;
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
-  Cmd* Clone() override { return new KVPageExistsCmd(*this); }
+  Cmd* Clone() override { return new KVBlockExistsCmd(*this); }
 
 private:
   std::string key_;

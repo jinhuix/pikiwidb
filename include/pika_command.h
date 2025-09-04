@@ -125,12 +125,12 @@ const std::string kCmdNamePKSetexAt = "pksetexat";
 const std::string kCmdNamePKScanRange = "pkscanrange";
 const std::string kCmdNamePKRScanRange = "pkrscanrange";
 
-// KV Cache - Page-oriented (vLLM PagedAttention)
-const std::string kCmdNameKVPageSet = "kvpageset";
-const std::string kCmdNameKVPageGet = "kvpageget";
-const std::string kCmdNameKVPageMSet = "kvpagemset";
-const std::string kCmdNameKVPageMGet = "kvpagemget";
-const std::string kCmdNameKVPageExists = "kvpageexists";
+// KV Cache - Block-oriented (vLLM PagedAttention)
+const std::string kCmdNameKVBlockSet = "kvblockset";
+const std::string kCmdNameKVBlockGet = "kvblockget";
+const std::string kCmdNameKVBlockMSet = "kvblockmset";
+const std::string kCmdNameKVBlockMGet = "kvblockmget";
+const std::string kCmdNameKVBlockExists = "kvblockexists";
 
 // Hash
 const std::string kCmdNameHDel = "hdel";
