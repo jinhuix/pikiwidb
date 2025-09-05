@@ -15,19 +15,19 @@ namespace pikiwidb {
 // KVBlock key builder implementations
 std::string KVBlockKeyBuilder::BuildBlockKey(const std::string& ns,
                                             uint16_t layer_id,
-                                            uint32_t block_id,
+                                            uint32_t block_hash,
                                             uint8_t k_type) {
   std::ostringstream oss;
-  oss << "kvblock:" << ns << ":" << layer_id << ":" << block_id << ":" << static_cast<int>(k_type);
+  oss << "kvblock:" << ns << ":" << layer_id << ":" << block_hash << ":" << static_cast<int>(k_type);
   return oss.str();
 }
 
 bool KVBlockKeyBuilder::ParseBlockKey(const std::string& key,
                                      std::string& ns,
                                      uint16_t& layer_id,
-                                     uint32_t& block_id,
+                                     uint32_t& block_hash,
                                      uint8_t& k_type) {
-  // Parse key format: kvblock:{ns}:{layer_id}:{block_id}:{k_type}
+  // Parse key format: kvblock:{ns}:{layer_id}:{block_hash}:{k_type}
   std::vector<std::string> parts;
   std::string current;
   
@@ -50,7 +50,7 @@ bool KVBlockKeyBuilder::ParseBlockKey(const std::string& key,
   try {
     ns = parts[1];
     layer_id = static_cast<uint16_t>(std::stoul(parts[2]));
-    block_id = static_cast<uint32_t>(std::stoul(parts[3]));
+    block_hash = static_cast<uint32_t>(std::stoul(parts[3]));
     k_type = static_cast<uint8_t>(std::stoul(parts[4]));
     return true;
   } catch (const std::exception&) {
@@ -88,7 +88,7 @@ void KVBlockSetCmd::DoInitial() {
     return;
   }
   
-  // KVBLOCKSET <ns> <layer_id> <block_id> <k_type> <tensor_data>
+  // KVBLOCKSET <ns> <layer_id> <block_hash> <k_type> <tensor_data>
   if (argv_.size() != 6) {
     res_.SetRes(CmdRes::kWrongNum, "kvblockset requires 5 arguments");
     return;
@@ -97,12 +97,12 @@ void KVBlockSetCmd::DoInitial() {
   try {
     ns_ = argv_[1];
     layer_id_ = static_cast<uint16_t>(std::stoul(argv_[2]));
-    block_id_ = static_cast<uint32_t>(std::stoul(argv_[3]));
+    block_hash_ = static_cast<uint32_t>(std::stoul(argv_[3]));
     k_type_ = static_cast<uint8_t>(std::stoul(argv_[4]));
     tensor_data_ = argv_[5];
     
     // Build the block key
-    key_ = pikiwidb::KVBlockKeyBuilder::BuildBlockKey(ns_, layer_id_, block_id_, k_type_);
+    key_ = pikiwidb::KVBlockKeyBuilder::BuildBlockKey(ns_, layer_id_, block_hash_, k_type_);
     
   } catch (const std::exception& e) {
     res_.SetRes(CmdRes::kInvalidInt, "Invalid argument format");
@@ -145,7 +145,7 @@ void KVBlockGetCmd::DoInitial() {
     return;
   }
   
-  // KVBLOCKGET <ns> <layer_id> <block_id> <k_type>
+  // KVBLOCKGET <ns> <layer_id> <block_hash> <k_type>
   if (argv_.size() != 5) {
     res_.SetRes(CmdRes::kWrongNum, "kvblockget requires 4 arguments");
     return;
@@ -154,11 +154,11 @@ void KVBlockGetCmd::DoInitial() {
   try {
     std::string ns = argv_[1];
     uint16_t layer_id = static_cast<uint16_t>(std::stoul(argv_[2]));
-    uint32_t block_id = static_cast<uint32_t>(std::stoul(argv_[3]));
+    uint32_t block_hash = static_cast<uint32_t>(std::stoul(argv_[3]));
     uint8_t k_type = static_cast<uint8_t>(std::stoul(argv_[4]));
     
     // Build the block key
-    key_ = pikiwidb::KVBlockKeyBuilder::BuildBlockKey(ns, layer_id, block_id, k_type);
+    key_ = pikiwidb::KVBlockKeyBuilder::BuildBlockKey(ns, layer_id, block_hash, k_type);
     
   } catch (const std::exception& e) {
     res_.SetRes(CmdRes::kInvalidInt, "Invalid argument format");
@@ -209,7 +209,7 @@ void KVBlockMSetCmd::DoInitial() {
     return;
   }
   
-  // KVBLOCKMSET <num_blocks> <ns1> <layer_id1> <block_id1> <k_type1> <data1> ...
+  // KVBLOCKMSET <num_blocks> <ns1> <layer_id1> <block_hash1> <k_type1> <data1> ...
   if (argv_.size() < 2) {
     res_.SetRes(CmdRes::kWrongNum, "kvblockmset requires at least 1 argument");
     return;
@@ -233,12 +233,12 @@ void KVBlockMSetCmd::DoInitial() {
       
       block_data.ns = argv_[base_idx];
       block_data.layer_id = static_cast<uint16_t>(std::stoul(argv_[base_idx + 1]));
-      block_data.block_id = static_cast<uint32_t>(std::stoul(argv_[base_idx + 2]));
+      block_data.block_hash = static_cast<uint32_t>(std::stoul(argv_[base_idx + 2]));
       block_data.k_type = static_cast<uint8_t>(std::stoul(argv_[base_idx + 3]));
       block_data.tensor_data = argv_[base_idx + 4];
       
       block_data.key = pikiwidb::KVBlockKeyBuilder::BuildBlockKey(
-          block_data.ns, block_data.layer_id, block_data.block_id, block_data.k_type);
+          block_data.ns, block_data.layer_id, block_data.block_hash, block_data.k_type);
       
       keys_.push_back(block_data.key);
       blocks_.push_back(block_data);
@@ -302,7 +302,7 @@ void KVBlockMGetCmd::DoInitial() {
     return;
   }
   
-  // KVBLOCKMGET <num_keys> <ns1> <layer_id1> <block_id1> <k_type1> ...
+  // KVBLOCKMGET <num_keys> <ns1> <layer_id1> <block_hash1> <k_type1> ...
   if (argv_.size() < 2) {
     res_.SetRes(CmdRes::kWrongNum, "kvblockmget requires at least 1 argument");
     return;
@@ -322,10 +322,10 @@ void KVBlockMGetCmd::DoInitial() {
       size_t base_idx = 2 + i * 4;
       std::string ns = argv_[base_idx];
       uint16_t layer_id = static_cast<uint16_t>(std::stoul(argv_[base_idx + 1]));
-      uint32_t block_id = static_cast<uint32_t>(std::stoul(argv_[base_idx + 2]));
+      uint32_t block_hash = static_cast<uint32_t>(std::stoul(argv_[base_idx + 2]));
       uint8_t k_type = static_cast<uint8_t>(std::stoul(argv_[base_idx + 3]));
       
-      std::string key = pikiwidb::KVBlockKeyBuilder::BuildBlockKey(ns, layer_id, block_id, k_type);
+      std::string key = pikiwidb::KVBlockKeyBuilder::BuildBlockKey(ns, layer_id, block_hash, k_type);
       keys_.push_back(key);
     }
     
@@ -390,7 +390,7 @@ void KVBlockExistsCmd::DoInitial() {
     return;
   }
   
-  // KVBLOCKEXISTS <ns> <layer_id> <block_id> <k_type>
+  // KVBLOCKEXISTS <ns> <layer_id> <block_hash> <k_type>
   if (argv_.size() != 5) {
     res_.SetRes(CmdRes::kWrongNum, "kvblockexists requires 4 arguments");
     return;
@@ -399,11 +399,11 @@ void KVBlockExistsCmd::DoInitial() {
   try {
     std::string ns = argv_[1];
     uint16_t layer_id = static_cast<uint16_t>(std::stoul(argv_[2]));
-    uint32_t block_id = static_cast<uint32_t>(std::stoul(argv_[3]));
+    uint32_t block_hash = static_cast<uint32_t>(std::stoul(argv_[3]));
     uint8_t k_type = static_cast<uint8_t>(std::stoul(argv_[4]));
     
     // Build the block key
-    key_ = pikiwidb::KVBlockKeyBuilder::BuildBlockKey(ns, layer_id, block_id, k_type);
+    key_ = pikiwidb::KVBlockKeyBuilder::BuildBlockKey(ns, layer_id, block_hash, k_type);
     
   } catch (const std::exception& e) {
     res_.SetRes(CmdRes::kInvalidInt, "Invalid argument format");
